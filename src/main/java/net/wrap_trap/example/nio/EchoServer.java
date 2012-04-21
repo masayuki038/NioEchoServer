@@ -8,16 +8,12 @@ import java.nio.channels.Selector;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
 import java.util.Iterator;
-import java.util.Queue;
 import java.util.Set;
-import java.util.concurrent.ConcurrentLinkedQueue;
 
 public class EchoServer {
 
     private ServerSocketChannel serverChannel;
     private Selector selector;
-
-    private Queue<ByteBuffer> queue = new ConcurrentLinkedQueue<ByteBuffer>();
 
     public EchoServer() throws IOException {
         serverChannel = ServerSocketChannel.open();
@@ -43,22 +39,15 @@ public class EchoServer {
                         System.out.println("accept");
                         SocketChannel channel = serverChannel.accept();
                         channel.configureBlocking(false);
-                        channel.register(key.selector(), (SelectionKey.OP_READ | SelectionKey.OP_WRITE));
+                        channel.register(key.selector(), SelectionKey.OP_READ);
                     } else {
                         SocketChannel channel = (SocketChannel) key.channel();
                         if (key.isReadable()) {
                             System.out.println("read");
                             ByteBuffer buffer = ByteBuffer.allocate(4096);
-                            if (channel.read(buffer) >= 0) {
-                                buffer.flip();
-                                queue.add(buffer);
-                            }
-                        } else if (key.isWritable()) {
-                            System.out.println("write");
-                            if (!queue.isEmpty()) {
-                                ByteBuffer buffer = queue.poll();
-                                channel.write(buffer);
-                            }
+                            channel.read(buffer);
+                            buffer.flip();
+                            channel.write(buffer);
                         }
                     }
                 }
