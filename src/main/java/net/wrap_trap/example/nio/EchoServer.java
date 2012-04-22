@@ -7,13 +7,17 @@ import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
+import java.util.ArrayList;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Set;
 
 public class EchoServer {
 
     private ServerSocketChannel serverChannel;
     private Selector selector;
+
+    private List<ByteBuffer> buffers = new ArrayList<ByteBuffer>();
 
     public EchoServer() throws IOException {
         serverChannel = ServerSocketChannel.open();
@@ -33,23 +37,30 @@ public class EchoServer {
                 Set<SelectionKey> keys = selector.selectedKeys();
                 for (Iterator<SelectionKey> it = keys.iterator(); it.hasNext();) {
                     SelectionKey key = it.next();
-                    it.remove();
 
                     if (key.isAcceptable()) {
                         System.out.println("accept");
                         SocketChannel channel = serverChannel.accept();
                         channel.configureBlocking(false);
                         channel.register(key.selector(), SelectionKey.OP_READ);
-                    } else {
+                    } else if (key.isReadable()) {
                         SocketChannel channel = (SocketChannel) key.channel();
-                        if (key.isReadable()) {
-                            System.out.println("read");
-                            ByteBuffer buffer = ByteBuffer.allocate(4096);
-                            channel.read(buffer);
+                        System.out.println("read");
+                        ByteBuffer buffer = ByteBuffer.allocate(4096);
+                        if (channel.read(buffer) > 0) {
                             buffer.flip();
+                            buffers.add(buffer);
+                            key.interestOps(SelectionKey.OP_READ | SelectionKey.OP_WRITE);
+                        }
+                    } else if (key.isWritable()) {
+                        System.out.println("write");
+                        SocketChannel channel = (SocketChannel) key.channel();
+                        for (ByteBuffer buffer : buffers) {
                             channel.write(buffer);
                         }
+                        key.interestOps(SelectionKey.OP_READ);
                     }
+                    it.remove();
                 }
             }
         } finally {
